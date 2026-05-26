@@ -1,11 +1,20 @@
 import React from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { HomeScreen, SearchScreen, DownloadsScreen, ProfileScreen } from '../screens';
 import { COLORS, SIZES } from '../constants';
 import { useDownloads } from '../context';
 
 const Tab = createBottomTabNavigator();
+
+const TabBarBackground = () => (
+  <View style={StyleSheet.absoluteFill}>
+    <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+    <View style={styles.tabBarOverlay} />
+  </View>
+);
 
 const MainNavigator = () => {
   const { downloadQueue } = useDownloads();
@@ -14,22 +23,15 @@ const MainNavigator = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
-          borderTopWidth: 1,
-          height: 65,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
-        tabBarLabelStyle: {
-          fontSize: SIZES.xs,
-          fontWeight: '500',
-        },
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarStyle: styles.tabBar,
+        tabBarBackground: () => <TabBarBackground />,
+        tabBarActiveTintColor: COLORS.text,
+        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarItemStyle: styles.tabBarItem,
+        tabBarIcon: ({ focused, color }) => {
           let iconName;
+          const size = focused ? 26 : 24;
 
           switch (route.name) {
             case 'Home':
@@ -48,7 +50,12 @@ const MainNavigator = () => {
               iconName = 'ellipse';
           }
 
-          return <Ionicons name={iconName} size={24} color={color} />;
+          return (
+            <View style={styles.iconContainer}>
+              <Ionicons name={iconName} size={size} color={color} />
+              {focused && <View style={styles.activeIndicator} />}
+            </View>
+          );
         },
       })}
     >
@@ -72,13 +79,7 @@ const MainNavigator = () => {
         options={{
           tabBarLabel: 'Downloads',
           tabBarBadge: downloadQueue.length > 0 ? downloadQueue.length : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: COLORS.primary,
-            fontSize: 10,
-            minWidth: 16,
-            height: 16,
-            lineHeight: 14,
-          },
+          tabBarBadgeStyle: styles.badge,
         }}
       />
       <Tab.Screen 
@@ -91,5 +92,50 @@ const MainNavigator = () => {
     </Tab.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  tabBar: {
+    position: 'absolute',
+    height: Platform.OS === 'ios' ? 85 : 65,
+    borderTopWidth: 0,
+    backgroundColor: 'transparent',
+    elevation: 0,
+  },
+  tabBarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(18, 18, 18, 0.95)',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  tabBarLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: -4,
+    marginBottom: Platform.OS === 'ios' ? 0 : 8,
+  },
+  tabBarItem: {
+    paddingTop: 8,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: -4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
+  },
+  badge: {
+    backgroundColor: COLORS.primary,
+    fontSize: 10,
+    fontWeight: 'bold',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+});
 
 export default MainNavigator;

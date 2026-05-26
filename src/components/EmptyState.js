@@ -14,7 +14,7 @@ const EmptyState = ({
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={64} color={COLORS.textSecondary} />
+        <Ionicons name={icon} size={64} color={COLORS.textMuted} />
       </View>
       <Text style={styles.title}>{title}</Text>
       {message && <Text style={styles.message}>{message}</Text>}
@@ -22,8 +22,8 @@ const EmptyState = ({
         <Button
           title={actionLabel}
           onPress={onAction}
-          variant="outline"
-          size="small"
+          variant="primary"
+          size="medium"
           style={styles.button}
         />
       )}
@@ -37,15 +37,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: SIZES.padding * 2,
+    minHeight: 300,
   },
   iconContainer: {
-    marginBottom: 16,
-    opacity: 0.6,
+    marginBottom: 20,
+    opacity: 0.5,
   },
   title: {
     color: COLORS.text,
     fontSize: SIZES.xl,
-    fontWeight: '600',
+    fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -54,9 +55,10 @@ const styles = StyleSheet.create({
     fontSize: SIZES.md,
     textAlign: 'center',
     lineHeight: 22,
+    maxWidth: 280,
   },
   button: {
-    marginTop: 20,
+    marginTop: 24,
   },
 });
 

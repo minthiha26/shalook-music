@@ -7,25 +7,36 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  Image,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES } from '../../constants';
+import { COLORS, SIZES, SHADOWS } from '../../constants';
 import { Button, Input } from '../../components';
 import { useAuth, useDownloads } from '../../context';
 
-const ProfileScreen = () => {
+const ProfileScreen = ({ navigation }) => {
   const { user, signOut, updateProfile } = useAuth();
   const { downloads, clearAllDownloads } = useDownloads();
   
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Settings state
-  const [downloadOverWifi, setDownloadOverWifi] = useState(true);
-  const [highQualityAudio, setHighQualityAudio] = useState(true);
-  const [notifications, setNotifications] = useState(true);
+
+  // Settings
+  const [settings, setSettings] = useState({
+    downloadWifi: true,
+    highQuality: true,
+    notifications: true,
+    autoPlay: true,
+    darkMode: true,
+  });
+
+  const updateSetting = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -33,13 +44,7 @@ const ProfileScreen = () => {
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-          },
-        },
+        { text: 'Sign Out', style: 'destructive', onPress: signOut },
       ]
     );
   };
@@ -49,215 +54,231 @@ const ProfileScreen = () => {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
-
     setIsLoading(true);
-    const result = await updateProfile({ name: name.trim() });
+    await updateProfile({ name: name.trim() });
     setIsLoading(false);
-
-    if (result.success) {
-      setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully');
-    } else {
-      Alert.alert('Error', result.error);
-    }
+    setIsEditing(false);
   };
 
   const handleClearData = () => {
     Alert.alert(
       'Clear All Data',
-      'This will delete all your downloads. This action cannot be undone.',
+      'This will delete all downloads. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            await clearAllDownloads();
-            Alert.alert('Success', 'All downloads have been cleared');
-          },
-        },
+        { text: 'Clear', style: 'destructive', onPress: clearAllDownloads },
       ]
     );
   };
 
-  const renderSettingItem = ({ icon, title, subtitle, value, onValueChange, isSwitch = true }) => (
-    <View style={styles.settingItem}>
+  const stats = [
+    { label: 'Downloads', value: downloads.length, icon: 'download' },
+    { label: 'Playlists', value: 0, icon: 'list' },
+    { label: 'Favorites', value: 0, icon: 'heart' },
+  ];
+
+  const menuItems = [
+    {
+      title: 'Account',
+      items: [
+        { id: 'edit', label: 'Edit Profile', icon: 'person-outline', onPress: () => setIsEditing(true) },
+        { id: 'password', label: 'Change Password', icon: 'lock-closed-outline' },
+        { id: 'privacy', label: 'Privacy Settings', icon: 'shield-outline' },
+      ],
+    },
+    {
+      title: 'Preferences',
+      items: [
+        { id: 'quality', label: 'Audio Quality', icon: 'musical-notes-outline', value: 'Very High' },
+        { id: 'storage', label: 'Storage', icon: 'folder-outline', value: '2.4 GB used' },
+        { id: 'language', label: 'Language', icon: 'globe-outline', value: 'English' },
+      ],
+    },
+    {
+      title: 'Data & Storage',
+      items: [
+        { id: 'clear_cache', label: 'Clear Cache', icon: 'trash-outline' },
+        { id: 'clear_downloads', label: 'Clear Downloads', icon: 'close-circle-outline', destructive: true, onPress: handleClearData },
+      ],
+    },
+    {
+      title: 'About',
+      items: [
+        { id: 'help', label: 'Help & Support', icon: 'help-circle-outline' },
+        { id: 'terms', label: 'Terms of Service', icon: 'document-text-outline' },
+        { id: 'privacy_policy', label: 'Privacy Policy', icon: 'shield-checkmark-outline' },
+        { id: 'version', label: 'App Version', icon: 'information-circle-outline', value: '1.0.0' },
+      ],
+    },
+  ];
+
+  const renderSettingToggle = (key, label, icon, description) => (
+    <View style={styles.settingItem} key={key}>
       <View style={styles.settingIcon}>
         <Ionicons name={icon} size={22} color={COLORS.primary} />
       </View>
       <View style={styles.settingContent}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        <Text style={styles.settingLabel}>{label}</Text>
+        {description && <Text style={styles.settingDescription}>{description}</Text>}
       </View>
-      {isSwitch && (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: COLORS.border, true: COLORS.primary }}
-          thumbColor={COLORS.text}
-        />
-      )}
+      <Switch
+        value={settings[key]}
+        onValueChange={(value) => updateSetting(key, value)}
+        trackColor={{ false: COLORS.border, true: COLORS.primary }}
+        thumbColor={COLORS.text}
+      />
     </View>
   );
 
-  const renderMenuButton = ({ icon, title, onPress, destructive = false }) => (
-    <TouchableOpacity style={styles.menuButton} onPress={onPress}>
-      <View style={styles.settingIcon}>
-        <Ionicons
-          name={icon}
-          size={22}
-          color={destructive ? COLORS.error : COLORS.primary}
+  const renderMenuItem = (item) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.menuItem}
+      onPress={item.onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.menuIcon, item.destructive && styles.destructiveIcon]}>
+        <Ionicons 
+          name={item.icon} 
+          size={22} 
+          color={item.destructive ? COLORS.error : COLORS.textSecondary} 
         />
       </View>
-      <Text style={[styles.menuButtonText, destructive && styles.destructiveText]}>
-        {title}
+      <Text style={[styles.menuLabel, item.destructive && styles.destructiveText]}>
+        {item.label}
       </Text>
-      <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+      {item.value ? (
+        <Text style={styles.menuValue}>{item.value}</Text>
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+      )}
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-        </View>
-
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
-              </Text>
-            </View>
-          </View>
-
-          {isEditing ? (
-            <View style={styles.editForm}>
-              <Input
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter your name"
-                icon={<Ionicons name="person-outline" size={20} color={COLORS.textSecondary} />}
-              />
-              <View style={styles.editActions}>
-                <Button
-                  title="Cancel"
-                  variant="outline"
-                  size="small"
-                  onPress={() => {
-                    setName(user?.name || '');
-                    setIsEditing(false);
-                  }}
-                  style={styles.editButton}
-                />
-                <Button
-                  title="Save"
-                  size="small"
-                  onPress={handleSaveProfile}
-                  loading={isLoading}
-                  style={styles.editButton}
-                />
-              </View>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.userName}>{user?.name}</Text>
-              <Text style={styles.userEmail}>{user?.email}</Text>
-              <TouchableOpacity
-                style={styles.editProfileButton}
-                onPress={() => setIsEditing(true)}
+        {/* Profile Header */}
+        <LinearGradient
+          colors={[COLORS.surfaceLight, COLORS.background]}
+          style={styles.headerGradient}
+        >
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Profile</Text>
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => navigation.navigate('Settings')}
               >
-                <Ionicons name="pencil-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.editProfileText}>Edit Profile</Text>
+                <Ionicons name="settings-outline" size={24} color={COLORS.text} />
               </TouchableOpacity>
-            </>
-          )}
-        </View>
+            </View>
+          </SafeAreaView>
 
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{downloads.length}</Text>
-            <Text style={styles.statLabel}>Downloads</Text>
+          <View style={styles.profileSection}>
+            <View style={styles.avatarContainer}>
+              <LinearGradient
+                colors={[COLORS.primary, COLORS.primaryDark]}
+                style={styles.avatar}
+              >
+                <Text style={styles.avatarText}>
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                </Text>
+              </LinearGradient>
+              <TouchableOpacity style={styles.editAvatarButton}>
+                <Ionicons name="camera" size={16} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            {isEditing ? (
+              <View style={styles.editForm}>
+                <Input
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Your name"
+                  variant="rounded"
+                />
+                <View style={styles.editActions}>
+                  <Button
+                    title="Cancel"
+                    variant="ghost"
+                    size="small"
+                    onPress={() => {
+                      setName(user?.name || '');
+                      setIsEditing(false);
+                    }}
+                  />
+                  <Button
+                    title="Save"
+                    size="small"
+                    onPress={handleSaveProfile}
+                    loading={isLoading}
+                  />
+                </View>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.userName}>{user?.name}</Text>
+                <Text style={styles.userEmail}>{user?.email}</Text>
+              </>
+            )}
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {downloads.filter(d => d.format === 'mp3').length}
-            </Text>
-            <Text style={styles.statLabel}>MP3 Files</Text>
+
+          {/* Stats */}
+          <View style={styles.statsContainer}>
+            {stats.map((stat, index) => (
+              <React.Fragment key={stat.label}>
+                <View style={styles.statItem}>
+                  <Ionicons name={stat.icon} size={20} color={COLORS.primary} />
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </View>
+                {index < stats.length - 1 && <View style={styles.statDivider} />}
+              </React.Fragment>
+            ))}
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {downloads.filter(d => d.format === 'mp4').length}
-            </Text>
-            <Text style={styles.statLabel}>Videos</Text>
+        </LinearGradient>
+
+        {/* Settings Toggles */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Settings</Text>
+          {renderSettingToggle('downloadWifi', 'Download on Wi-Fi only', 'wifi-outline', 'Save mobile data')}
+          {renderSettingToggle('highQuality', 'High quality audio', 'musical-notes-outline', '320kbps streaming')}
+          {renderSettingToggle('notifications', 'Push notifications', 'notifications-outline')}
+          {renderSettingToggle('autoPlay', 'Autoplay', 'play-circle-outline', 'Play similar tracks')}
+        </View>
+
+        {/* Menu Sections */}
+        {menuItems.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.menuCard}>
+              {section.items.map(renderMenuItem)}
+            </View>
           </View>
-        </View>
+        ))}
 
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          
-          {renderSettingItem({
-            icon: 'wifi-outline',
-            title: 'Download over Wi-Fi only',
-            subtitle: 'Save mobile data',
-            value: downloadOverWifi,
-            onValueChange: setDownloadOverWifi,
-          })}
-          
-          {renderSettingItem({
-            icon: 'musical-notes-outline',
-            title: 'High quality audio',
-            subtitle: '320kbps MP3',
-            value: highQualityAudio,
-            onValueChange: setHighQualityAudio,
-          })}
-          
-          {renderSettingItem({
-            icon: 'notifications-outline',
-            title: 'Notifications',
-            subtitle: 'Download complete alerts',
-            value: notifications,
-            onValueChange: setNotifications,
-          })}
-        </View>
-
-        {/* Actions Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data</Text>
-          
-          {renderMenuButton({
-            icon: 'trash-outline',
-            title: 'Clear all downloads',
-            onPress: handleClearData,
-            destructive: true,
-          })}
-        </View>
-
-        {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
-          {renderMenuButton({
-            icon: 'log-out-outline',
-            title: 'Sign Out',
-            onPress: handleLogout,
-            destructive: true,
-          })}
+        {/* Sign Out */}
+        <View style={styles.signOutSection}>
+          <Button
+            title="Sign Out"
+            variant="outline"
+            fullWidth
+            onPress={handleLogout}
+            icon={<Ionicons name="log-out-outline" size={20} color={COLORS.text} />}
+          />
         </View>
 
         {/* App Info */}
         <View style={styles.appInfo}>
+          <Ionicons name="musical-notes" size={32} color={COLORS.primary} />
           <Text style={styles.appName}>Shalook Music</Text>
           <Text style={styles.appVersion}>Version 1.0.0</Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -266,88 +287,100 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
+  headerGradient: {
+    paddingBottom: 24,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: SIZES.padding,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingVertical: 12,
   },
   title: {
     color: COLORS.text,
     fontSize: SIZES.xxl,
     fontWeight: 'bold',
   },
-  profileCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SIZES.padding,
-    borderRadius: SIZES.radiusLg,
-    padding: SIZES.padding,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarContainer: {
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primary,
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  profileSection: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.medium,
+  },
   avatarText: {
     color: COLORS.text,
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: 'bold',
+  },
+  editAvatarButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.background,
   },
   userName: {
     color: COLORS.text,
-    fontSize: SIZES.xl,
+    fontSize: SIZES.xxl,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   userEmail: {
     color: COLORS.textSecondary,
     fontSize: SIZES.md,
-    marginBottom: 12,
-  },
-  editProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  editProfileText: {
-    color: COLORS.primary,
-    fontSize: SIZES.sm,
-    fontWeight: '500',
   },
   editForm: {
-    width: '100%',
+    width: '80%',
+    marginTop: 8,
   },
   editActions: {
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: 12,
-    marginTop: 8,
-  },
-  editButton: {
-    flex: 1,
+    marginTop: 12,
   },
   statsContainer: {
     flexDirection: 'row',
     backgroundColor: COLORS.surface,
     marginHorizontal: SIZES.padding,
-    borderRadius: SIZES.radius,
-    padding: SIZES.padding,
-    marginBottom: 24,
+    borderRadius: SIZES.radius.lg,
+    padding: 20,
+    ...SHADOWS.small,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statValue: {
-    color: COLORS.primary,
+    color: COLORS.text,
     fontSize: SIZES.xxl,
     fontWeight: 'bold',
+    marginTop: 8,
   },
   statLabel: {
     color: COLORS.textSecondary,
@@ -360,30 +393,30 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   section: {
-    marginBottom: 24,
     paddingHorizontal: SIZES.padding,
+    marginTop: 24,
   },
   sectionTitle: {
     color: COLORS.textSecondary,
     fontSize: SIZES.sm,
     fontWeight: '600',
     textTransform: 'uppercase',
+    letterSpacing: 1,
     marginBottom: 12,
-    letterSpacing: 0.5,
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    padding: 12,
-    borderRadius: SIZES.radius,
+    padding: 16,
+    borderRadius: SIZES.radius.md,
     marginBottom: 8,
   },
   settingIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.cardBg,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -391,25 +424,41 @@ const styles = StyleSheet.create({
   settingContent: {
     flex: 1,
   },
-  settingTitle: {
+  settingLabel: {
     color: COLORS.text,
     fontSize: SIZES.md,
     fontWeight: '500',
   },
-  settingSubtitle: {
+  settingDescription: {
     color: COLORS.textSecondary,
     fontSize: SIZES.xs,
     marginTop: 2,
   },
-  menuButton: {
+  menuCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: SIZES.radius.md,
+    overflow: 'hidden',
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: 12,
-    borderRadius: SIZES.radius,
-    marginBottom: 8,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  menuButtonText: {
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  destructiveIcon: {
+    backgroundColor: 'rgba(241, 94, 108, 0.1)',
+  },
+  menuLabel: {
     flex: 1,
     color: COLORS.text,
     fontSize: SIZES.md,
@@ -418,19 +467,28 @@ const styles = StyleSheet.create({
   destructiveText: {
     color: COLORS.error,
   },
+  menuValue: {
+    color: COLORS.textSecondary,
+    fontSize: SIZES.sm,
+  },
+  signOutSection: {
+    paddingHorizontal: SIZES.padding,
+    marginTop: 32,
+  },
   appInfo: {
     alignItems: 'center',
-    paddingVertical: 24,
-    marginBottom: 20,
+    paddingVertical: 32,
+    marginBottom: 100,
   },
   appName: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.md,
-    fontWeight: '500',
+    color: COLORS.text,
+    fontSize: SIZES.lg,
+    fontWeight: '600',
+    marginTop: 12,
   },
   appVersion: {
-    color: COLORS.textSecondary,
-    fontSize: SIZES.xs,
+    color: COLORS.textMuted,
+    fontSize: SIZES.sm,
     marginTop: 4,
   },
 });

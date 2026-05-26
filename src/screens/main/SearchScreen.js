@@ -3,40 +3,55 @@ import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   FlatList,
   TouchableOpacity,
+  Animated,
+  Keyboard,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES } from '../../constants';
-import { VideoCard, SearchBar, DownloadModal, LoadingSpinner, EmptyState } from '../../components';
+import { 
+  SearchInput,
+  TrackListItem,
+  TrackCard,
+  CategoryCard,
+  SectionHeader,
+  LoadingSpinner,
+  EmptyState,
+  DownloadSheet,
+  TrackOptionsSheet,
+} from '../../components';
 import { youtubeService } from '../../services';
 import { useDownloads } from '../../context';
 
-const RECENT_SEARCHES_KEY = '@shalook_recent_searches';
+const CATEGORIES = [
+  'Pop', 'Hip Hop', 'Rock', 'Electronic', 'R&B', 'Jazz',
+  'Classical', 'Country', 'Latin', 'Indie', 'Metal', 'Chill',
+  'Workout', 'Focus', 'Party', 'Sleep',
+];
 
 const SearchScreen = ({ navigation }) => {
   const { addToQueue, startDownload } = useDownloads();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [videos, setVideos] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState(null);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState(null);
+  const [showDownloadSheet, setShowDownloadSheet] = useState(false);
+  const [showOptionsSheet, setShowOptionsSheet] = useState(false);
   const [recentSearches, setRecentSearches] = useState([
-    'Alan Walker',
-    'Ed Sheeran',
-    'Billie Eilish',
-    'The Weeknd',
-    'Dua Lipa',
+    'Alan Walker', 'Ed Sheeran', 'Billie Eilish', 'The Weeknd', 'Dua Lipa'
   ]);
 
   const handleSearch = async (query) => {
-    if (!query.trim()) return;
-
-    setIsLoading(true);
+    if (!query?.trim()) return;
+    
+    Keyboard.dismiss();
+    setIsSearching(true);
     setHasSearched(true);
     
     // Add to recent searches
@@ -45,162 +60,209 @@ const SearchScreen = ({ navigation }) => {
     }
 
     try {
-      const searchResults = await youtubeService.searchVideos(query, 20);
-      setVideos(searchResults);
+      const results = await youtubeService.searchVideos(query, 25);
+      setSearchResults(results);
     } catch (error) {
       console.error('Search error:', error);
     } finally {
-      setIsLoading(false);
+      setIsSearching(false);
     }
   };
 
-  const handleRecentSearchPress = (search) => {
+  const handleCategoryPress = (category) => {
+    setSearchQuery(category);
+    handleSearch(category);
+  };
+
+  const handleRecentPress = (search) => {
     setSearchQuery(search);
     handleSearch(search);
   };
 
-  const handleClearRecent = (search) => {
-    setRecentSearches(prev => prev.filter(s => s !== search));
+  const handleClearRecent = () => {
+    setRecentSearches([]);
   };
 
-  const handleVideoPress = (video) => {
-    setSelectedVideo(video);
-    setShowDownloadModal(true);
+  const handleTrackPress = (track) => {
+    // Play track
   };
 
-  const handleDownloadPress = (video) => {
-    setSelectedVideo(video);
-    setShowDownloadModal(true);
+  const handleTrackOptions = (track) => {
+    setSelectedTrack(track);
+    setShowOptionsSheet(true);
   };
 
-  const handleDownload = async (video, format) => {
-    setIsDownloading(true);
-    
-    const downloadItem = addToQueue(video, format);
-    setShowDownloadModal(false);
-    setSelectedVideo(null);
-    
+  const handleDownload = async (video, option) => {
+    setShowDownloadSheet(false);
+    const downloadItem = addToQueue(video, option.format);
     await startDownload(downloadItem);
-    
-    setIsDownloading(false);
     navigation.navigate('Downloads');
+  };
+
+  const handleOptionAction = (actionId, track) => {
+    if (actionId === 'download') {
+      setShowOptionsSheet(false);
+      setTimeout(() => {
+        setSelectedTrack(track);
+        setShowDownloadSheet(true);
+      }, 300);
+    }
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
-    setVideos([]);
+    setSearchResults([]);
     setHasSearched(false);
   };
 
-  const renderRecentSearchItem = ({ item }) => (
-    <View style={styles.recentItem}>
-      <TouchableOpacity
-        style={styles.recentContent}
-        onPress={() => handleRecentSearchPress(item)}
-      >
-        <Ionicons name="time-outline" size={20} color={COLORS.textSecondary} />
-        <Text style={styles.recentText}>{item}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.removeButton}
-        onPress={() => handleClearRecent(item)}
-      >
-        <Ionicons name="close" size={18} color={COLORS.textSecondary} />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderRecentSearches = () => (
-    <View style={styles.recentContainer}>
-      <Text style={styles.sectionTitle}>Recent Searches</Text>
-      <FlatList
-        data={recentSearches}
-        keyExtractor={(item, index) => `${item}-${index}`}
-        renderItem={renderRecentSearchItem}
-        scrollEnabled={false}
-      />
-    </View>
-  );
-
-  const renderSuggestions = () => (
-    <View style={styles.suggestionsContainer}>
-      <Text style={styles.sectionTitle}>Popular Searches</Text>
-      <View style={styles.tagsContainer}>
-        {['Pop Music', 'Hip Hop', 'Electronic', 'Rock', 'R&B', 'Jazz', 'Classical', 'Country'].map((tag) => (
-          <TouchableOpacity
-            key={tag}
-            style={styles.tag}
-            onPress={() => handleRecentSearchPress(tag)}
-          >
-            <Text style={styles.tagText}>{tag}</Text>
-          </TouchableOpacity>
+  const renderBrowseAll = () => (
+    <View style={styles.browseContainer}>
+      <SectionHeader title="Browse All" showSeeAll={false} />
+      <View style={styles.categoriesGrid}>
+        {CATEGORIES.map((category) => (
+          <CategoryCard
+            key={category}
+            category={category}
+            onPress={handleCategoryPress}
+          />
         ))}
       </View>
     </View>
   );
 
-  const renderEmpty = () => (
-    <EmptyState
-      icon="search-outline"
-      title="No results found"
-      message={`We couldn't find any videos for "${searchQuery}". Try different keywords.`}
-    />
-  );
+  const renderRecentSearches = () => {
+    if (recentSearches.length === 0) return null;
 
-  const renderInitialState = () => (
-    <View style={styles.initialContainer}>
-      {recentSearches.length > 0 && renderRecentSearches()}
-      {renderSuggestions()}
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Search</Text>
+    return (
+      <View style={styles.recentContainer}>
+        <View style={styles.recentHeader}>
+          <Text style={styles.recentTitle}>Recent searches</Text>
+          <TouchableOpacity onPress={handleClearRecent}>
+            <Text style={styles.clearText}>Clear all</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {recentSearches.map((search, index) => (
+          <TouchableOpacity
+            key={`${search}-${index}`}
+            style={styles.recentItem}
+            onPress={() => handleRecentPress(search)}
+          >
+            <Ionicons name="time-outline" size={20} color={COLORS.textSecondary} />
+            <Text style={styles.recentText}>{search}</Text>
+            <TouchableOpacity 
+              onPress={() => setRecentSearches(prev => prev.filter(s => s !== search))}
+              style={styles.removeButton}
+            >
+              <Ionicons name="close" size={18} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
       </View>
+    );
+  };
 
-      <SearchBar
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        onSubmit={handleSearch}
-        onClear={handleClearSearch}
-        placeholder="Search for music, artists..."
-        autoFocus
-      />
+  const renderSearchResults = () => {
+    if (isSearching) {
+      return <LoadingSpinner message="Searching..." />;
+    }
 
-      {isLoading ? (
-        <LoadingSpinner message="Searching..." />
-      ) : hasSearched ? (
+    if (searchResults.length === 0) {
+      return (
+        <EmptyState
+          icon="search-outline"
+          title="No results found"
+          message={`We couldn't find anything for "${searchQuery}"`}
+        />
+      );
+    }
+
+    return (
+      <View style={styles.resultsContainer}>
+        <Text style={styles.resultsCount}>
+          {searchResults.length} results for "{searchQuery}"
+        </Text>
+        
+        {/* Top Results - Horizontal */}
+        <SectionHeader title="Top Results" showSeeAll={false} style={styles.sectionHeader} />
         <FlatList
-          data={videos}
-          keyExtractor={(item) => item.videoId}
+          horizontal
+          data={searchResults.slice(0, 5)}
+          keyExtractor={(item) => `top-${item.videoId}`}
           renderItem={({ item }) => (
-            <VideoCard
-              video={item}
-              onPress={handleVideoPress}
-              onDownload={handleDownloadPress}
+            <TrackCard
+              track={item}
+              size="medium"
+              onPress={handleTrackPress}
             />
           )}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
         />
-      ) : (
-        renderInitialState()
-      )}
 
-      <DownloadModal
-        visible={showDownloadModal}
-        video={selectedVideo}
-        onClose={() => {
-          setShowDownloadModal(false);
-          setSelectedVideo(null);
-        }}
+        {/* All Results - List */}
+        <SectionHeader title="Songs" showSeeAll={false} style={styles.sectionHeader} />
+        {searchResults.map((track, index) => (
+          <TrackListItem
+            key={track.videoId}
+            track={track}
+            index={index}
+            showIndex={false}
+            onPress={handleTrackPress}
+            onOptionsPress={handleTrackOptions}
+          />
+        ))}
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      
+      <SafeAreaView edges={['top']} style={styles.header}>
+        <Text style={styles.title}>Search</Text>
+        <SearchInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmit={handleSearch}
+          onClear={handleClearSearch}
+          autoFocus={false}
+        />
+      </SafeAreaView>
+
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {hasSearched ? (
+          renderSearchResults()
+        ) : (
+          <>
+            {renderRecentSearches()}
+            {renderBrowseAll()}
+          </>
+        )}
+        
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+
+      {/* Bottom Sheets */}
+      <DownloadSheet
+        visible={showDownloadSheet}
+        video={selectedTrack}
+        onClose={() => setShowDownloadSheet(false)}
         onDownload={handleDownload}
-        isDownloading={isDownloading}
       />
-    </SafeAreaView>
+
+      <TrackOptionsSheet
+        visible={showOptionsSheet}
+        track={selectedTrack}
+        onClose={() => setShowOptionsSheet(false)}
+        onAction={handleOptionAction}
+      />
+    </View>
   );
 };
 
@@ -210,71 +272,77 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    paddingHorizontal: SIZES.padding,
-    paddingTop: 8,
+    backgroundColor: COLORS.background,
+    paddingBottom: 8,
   },
   title: {
     color: COLORS.text,
     fontSize: SIZES.xxl,
     fontWeight: 'bold',
+    paddingHorizontal: SIZES.padding,
+    paddingTop: 8,
   },
-  initialContainer: {
+  scrollView: {
     flex: 1,
+  },
+  browseContainer: {
+    paddingBottom: 20,
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: SIZES.padding,
   },
   recentContainer: {
+    paddingHorizontal: SIZES.padding,
     marginBottom: 24,
   },
-  sectionTitle: {
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  recentTitle: {
     color: COLORS.text,
     fontSize: SIZES.lg,
-    fontWeight: '600',
-    marginBottom: 12,
+    fontWeight: 'bold',
+  },
+  clearText: {
+    color: COLORS.textSecondary,
+    fontSize: SIZES.sm,
   },
   recentItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  recentContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
   recentText: {
+    flex: 1,
     color: COLORS.text,
     fontSize: SIZES.md,
   },
   removeButton: {
     padding: 4,
   },
-  suggestionsContainer: {
+  resultsContainer: {
+    flex: 1,
+  },
+  resultsCount: {
+    color: COLORS.textSecondary,
+    fontSize: SIZES.sm,
+    paddingHorizontal: SIZES.padding,
     marginTop: 8,
   },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  sectionHeader: {
+    marginTop: 16,
   },
-  tag: {
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  tagText: {
-    color: COLORS.text,
-    fontSize: SIZES.sm,
-  },
-  listContent: {
+  horizontalList: {
     paddingHorizontal: SIZES.padding,
-    paddingBottom: 20,
-    flexGrow: 1,
+  },
+  bottomPadding: {
+    height: 100,
   },
 });
 

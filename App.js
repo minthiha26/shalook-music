@@ -1,5 +1,5 @@
-import React from 'react';
-import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
+import { StatusBar, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, DownloadProvider } from './src/context';
@@ -8,11 +8,15 @@ import { COLORS } from './src/constants';
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: COLORS.background }}>
+    <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider>
         <AuthProvider>
           <DownloadProvider>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
+            <StatusBar 
+              barStyle="light-content" 
+              backgroundColor="transparent"
+              translucent 
+            />
             <AppNavigator />
           </DownloadProvider>
         </AuthProvider>
@@ -20,3 +24,10 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+});
