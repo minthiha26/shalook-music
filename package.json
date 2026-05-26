@@ -31,7 +31,8 @@
     "lottie-react-native": "^7.1.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.0"
+    "@babel/core": "^7.25.0",
+    "babel-preset-expo": "~13.2.0"
   },
   "private": true
 }
